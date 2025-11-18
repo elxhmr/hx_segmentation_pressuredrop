@@ -1,0 +1,16 @@
+Traceback (most recent call last):
+  File "C:\Users\elxhm\vclibpy-main\examples\e9_domestic_heat_pump_seg.py", line 121, in <module>
+    main()
+  File "C:\Users\elxhm\vclibpy-main\examples\e9_domestic_heat_pump_seg.py", line 87, in main
+    fs = hp.calc_steady_state(inputs=inputs, show_iteration=False)
+         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "c:\users\elxhm\vclibpy-main\vclibpy\flowsheets\base.py", line 294, in calc_steady_state
+    self.evaporator.calc(inputs=inputs, fs_state=fs_state)
+  File "c:\users\elxhm\vclibpy-main\vclibpy\components\heat_exchangers\moving_boundary_ntu.py", line 587, in calc
+    self.apply_segment_pressure_drops(segments_dict, self.m_flow, fs_state)
+  File "c:\users\elxhm\vclibpy-main\vclibpy\components\heat_exchangers\moving_boundary_ntu.py", line 228, in apply_segment_pressure_drops
+    print(f"DEBUG {self.__class__.__name__} {phase_type} segment {i}: p_inlet={segment.state_inlet.p/1e5:.3f} bar \u2192 p_outlet={p_outlet_new/1e5:.3f} bar")
+  File "C:\Users\elxhm\anaconda3\envs\pyjulia_env\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2192' in position 67: character maps to <undefined>
