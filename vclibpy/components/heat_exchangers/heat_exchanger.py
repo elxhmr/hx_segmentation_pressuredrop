@@ -5,7 +5,7 @@ from typing import Tuple
 from vclibpy import media
 from vclibpy.datamodels import FlowsheetState, Inputs
 from vclibpy.components.component import BaseComponent
-from vclibpy.components.heat_exchangers.heat_transfer.heat_transfer import HeatTransfer, TwoPhaseHeatTransfer
+from vclibpy.components.heat_transfer.heat_transfer import HeatTransfer, TwoPhaseHeatTransfer
 
 
 class HeatExchanger(BaseComponent, abc.ABC):
