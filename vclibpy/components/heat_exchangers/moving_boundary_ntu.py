@@ -21,9 +21,20 @@ class MovingBoundaryNTU(BasicNTU, abc.ABC):
     See parent classe for arguments.
     """
     
-    def __init__(self, *args, n_segments_sc: int = 3, n_segments_lat: int = 5, 
-                 n_segments_sh: int = 3, use_segmentation: bool = True, 
-                 pressure_drop_model=None, apply_pressure_drops: bool = True, **kwargs):
+    def __init__(
+        self,
+        *args,
+        n_segments_sc: int = 3,
+        n_segments_lat: int = 5,
+        n_segments_sh: int = 3,
+        use_segmentation: bool = True,
+        pressure_drop_model=None,
+        two_phase_pressure_drop=None,
+        gas_pressure_drop=None,
+        liquid_pressure_drop=None,
+        apply_pressure_drops: bool = True,
+        **kwargs,
+    ):
         """
         Initialize MovingBoundaryNTU with segmentation options.
         
@@ -32,12 +43,19 @@ class MovingBoundaryNTU(BasicNTU, abc.ABC):
             n_segments_lat (int): Number of segments for latent/two-phase. Default: 5
             n_segments_sh (int): Number of segments for superheat phase. Default: 3
             use_segmentation (bool): Enable phase segmentation. Default: True
-            pressure_drop_model: Pressure drop model (e.g., ConstantPressureDrop). Default: None
+            pressure_drop_model: Backward-compatible global pressure drop model.
+            two_phase_pressure_drop: Optional pressure-drop model for two-phase segments.
+            gas_pressure_drop: Optional pressure-drop model for superheated-vapor segments.
+            liquid_pressure_drop: Optional pressure-drop model for liquid segments.
             apply_pressure_drops (bool): Enable application of pressure drops. Default: True
         """
         super().__init__(*args, **kwargs)
         self.use_segmentation = use_segmentation
         self.pressure_drop_model = pressure_drop_model
+        # Optional phase-specific pressure-drop models; fall back to global if not set
+        self.two_phase_pressure_drop = two_phase_pressure_drop or pressure_drop_model
+        self.gas_pressure_drop = gas_pressure_drop or pressure_drop_model
+        self.liquid_pressure_drop = liquid_pressure_drop or pressure_drop_model
         self.apply_pressure_drops = apply_pressure_drops
         self.segmentation = HeatExchangerSegmentation(
             n_segments_sc=n_segments_sc,
@@ -327,7 +345,9 @@ class MovingBoundaryNTU(BasicNTU, abc.ABC):
         Returns:
             dict: Total pressure drops per phase, used for convergence checking
         """
-        if not self.pressure_drop_model or not segments_dict or not self.apply_pressure_drops:
+        if (not self.pressure_drop_model and not any(
+            [self.two_phase_pressure_drop, self.gas_pressure_drop, self.liquid_pressure_drop]
+        )) or not segments_dict or not self.apply_pressure_drops:
             return {}
         
         # Define the order of phases for cascading pressure
@@ -378,6 +398,16 @@ class MovingBoundaryNTU(BasicNTU, abc.ABC):
                 continue
             
             total_dp = 0.0
+
+            # Select phase-specific pressure-drop model if available
+            if phase_type == 'lat':
+                pd_model = self.two_phase_pressure_drop or self.pressure_drop_model
+            elif phase_type == 'sh':
+                pd_model = self.gas_pressure_drop or self.pressure_drop_model
+            elif phase_type == 'sc':
+                pd_model = self.liquid_pressure_drop or self.pressure_drop_model
+            else:
+                pd_model = self.pressure_drop_model
             
             # Cascade pressure drops through segments within a phase
             # AND from the previous phase to this phase
@@ -400,8 +430,8 @@ class MovingBoundaryNTU(BasicNTU, abc.ABC):
                 
                 # Calculate pressure drop using the model
                 try:
-                    dp = self.pressure_drop_model.calc(None, m_flow)
-                except:
+                    dp = pd_model.calc(None, m_flow) if pd_model is not None else 0.0
+                except Exception:
                     dp = 0.0
                 
                 total_dp += dp
