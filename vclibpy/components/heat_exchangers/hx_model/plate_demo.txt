@@ -2,10 +2,10 @@
 # Length/width refer to single plate dimensions (m)
 # num_channels counts refrigerant passages (plates - 1 for single-pass unit)
 type=plate
-plate_length_m=0.55
-plate_width_m=0.24
-num_channels=22
-channel_gap_m=0.0022
-surface_efficiency=0.93
-expansion_factor=1.05
-ratio_outer_to_inner_area=1.0
+wallThickness_m=0.75e-3,
+patternWaveLength_m=12.6e-3,
+width_m=0.1,
+length_m=0.3,
+phi_deg=35,
+numberOfPlates=50,
+patternAmplitude_m=2e-3
