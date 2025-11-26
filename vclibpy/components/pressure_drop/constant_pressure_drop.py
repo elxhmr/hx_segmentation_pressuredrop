@@ -7,7 +7,7 @@ from .pressure_drop import PressureDrop
 class ConstantPressureDrop(PressureDrop):
     """Einfaches Modell mit konstantem Druckverlust.
 
-    Standardmäßig wird ein fixer Δp in Pascal verwendet, kann aber
+    Standardmäßig wird ein fixer Δp in Pa verwendet, kann aber
     über den Parameter ``dp`` angepasst werden.
 
     Beispiel::

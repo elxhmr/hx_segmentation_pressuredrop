@@ -85,7 +85,9 @@ class HeatExchangerSegmentation:
         else:
             raise ValueError(f"Unknown phase type: {phase_type}")
     
-    def segment_phase(self, phase_type: str, A_phase: float, dT_max: float) -> List[PhaseSegment]:
+    def segment_phase(self, phase_type: str, A_phase: float, dT_max: float,
+                      length_phase: float | None = None,
+                      d_h: float | None = None) -> List[PhaseSegment]:
         """
         Segment a single phase into multiple computational segments.
         
@@ -93,6 +95,10 @@ class HeatExchangerSegmentation:
             phase_type (str): Type of phase ('sc', 'lat', 'sh')
             A_phase (float): Total area for this phase [m2]
             dT_max (float): Maximum temperature difference for this phase
+            length_phase (float | None): Total length for this phase [m];
+                if provided, it will be distributed equally to segments.
+            d_h (float | None): Hydraulic diameter for this phase [m];
+                if provided, it will be copied unchanged to each segment.
             
         Returns:
             List[PhaseSegment]: List of segments for this phase
@@ -105,6 +111,11 @@ class HeatExchangerSegmentation:
         
         # Distribute area equally among segments
         A_segment = A_phase / n_segments
+
+        # Optional: distribute length equally among segments
+        L_segment = None
+        if length_phase is not None and length_phase > 0:
+            L_segment = length_phase / n_segments
         
         for i in range(n_segments):
             segment = PhaseSegment(
@@ -114,12 +125,20 @@ class HeatExchangerSegmentation:
                 A=A_segment,
                 dT_max=dT_max  # Same dT_max for all segments in a phase
             )
+            if L_segment is not None:
+                # Attach length attribute dynamically so printers can use it
+                setattr(segment, "length", L_segment)
+            if d_h is not None:
+                # Hydraulic diameter is constant along the HX; do not split
+                setattr(segment, "d_h", d_h)
             segments.append(segment)
         
         return segments
     
     def segment_all_phases(self, A_sc: float, A_lat: float, A_sh: float,
-                          dT_max_sc: float, dT_max_lat: float, dT_max_sh: float) -> Dict[str, List[PhaseSegment]]:
+                          dT_max_sc: float, dT_max_lat: float, dT_max_sh: float,
+                          length_total: float | None = None,
+                          d_h: float | None = None) -> Dict[str, List[PhaseSegment]]:
         """
         Segment all heat exchanger phases into computational segments.
         
@@ -130,20 +149,35 @@ class HeatExchangerSegmentation:
             dT_max_sc (float): Maximum temperature difference for subcooling
             dT_max_lat (float): Maximum temperature difference for latent phase
             dT_max_sh (float): Maximum temperature difference for superheat
+            length_total (float | None): Total heat exchanger length [m];
+                if provided, it is distributed proportionally to phase area.
+            d_h (float | None): Hydraulic diameter for the HX [m]; copied
+                unchanged to all segments (not distributed).
             
         Returns:
             Dict[str, List[PhaseSegment]]: Dictionary with phase types as keys and segment lists as values
         """
         result = {}
+
+        # If a total length is provided, distribute it proportionally by phase area
+        L_sc = L_lat = L_sh = None
+        if length_total is not None and length_total > 0:
+            A_total = max(A_sc + A_lat + A_sh, 1e-12)
+            L_sc = length_total * (A_sc / A_total) if A_sc > 0 else 0.0
+            L_lat = length_total * (A_lat / A_total) if A_lat > 0 else 0.0
+            L_sh = length_total * (A_sh / A_total) if A_sh > 0 else 0.0
         
         if A_sc > 0:
-            result['sc'] = self.segment_phase('sc', A_sc, dT_max_sc)
+            result['sc'] = self.segment_phase('sc', A_sc, dT_max_sc,
+                                              length_phase=L_sc, d_h=d_h)
         
         if A_lat > 0:
-            result['lat'] = self.segment_phase('lat', A_lat, dT_max_lat)
+            result['lat'] = self.segment_phase('lat', A_lat, dT_max_lat,
+                                               length_phase=L_lat, d_h=d_h)
         
         if A_sh > 0:
-            result['sh'] = self.segment_phase('sh', A_sh, dT_max_sh)
+            result['sh'] = self.segment_phase('sh', A_sh, dT_max_sh,
+                                              length_phase=L_sh, d_h=d_h)
         
         return result
     

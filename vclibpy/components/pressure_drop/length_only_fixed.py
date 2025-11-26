@@ -4,36 +4,55 @@ from typing import Any
 from .pressure_drop import PressureDrop
 
 
-class FixedGradientPressureDrop(PressureDrop):
+class FixedPressureDropPerLength(PressureDrop):
+    """Längenabhängige, **flussunabhängige** Δp-Korrelation.
+
+    Definition in diesem Projekt:
+
+    - ``dp_per_length`` ist der Druckverlust über die Referenzlänge ``length``,
+      angegeben in Pa. Beispiel: ``dp_per_length = 3000`` und ``length = 5``
+      bedeutet **3 kPa über 5 m gesamt**.
+    - Der Druckverlust pro Meter ergibt sich dann zu
+
+        Δp/m = dp_per_length / length.
+
+    Für ein Segment mit Länge ``L_seg`` gilt damit
+
+        Δp_seg = (dp_per_length / length) * L_seg
+
+    Diese Segment-Skalierung erfolgt im Wärmetauscher-Code; diese Klasse liefert
+    nur ``dp_per_length`` und die zugehörige Referenzlänge ``length``.
     """
-    Länge-abhängige, **flussunabhängige** Δp-Korrelation mit festem Druckgefälle:
 
-        Δp = (grad_pa_per_m) * L
+    name = "FixedPressureDropPerLength"
 
-    Standard: 0.05 bar pro Meter => 0.05 * 1e5 Pa/m = 5_000 Pa/m.
+    def __init__(
+        self,
+        dp_per_length: float = 5_000.0,
+        length: float = 1.0,
+    ) -> None:
+        """Initialisiere die Korrelation.
 
-    - grad_pa_per_m: [Pa/m]
-    - L: [m]
-    """
-
-    name = "FixedGradientPressureDrop"
-
-    def __init__(self, L: float, grad_pa_per_m: float = 5_000.0) -> None:
-        """
         Parameters
         ----------
-        L : float
-            Bauteillänge [m].
-        grad_pa_per_m : float, optional
-            Festes Druckgefälle [Pa/m], default 5_000 Pa/m (0.05 bar/m).
+        dp_per_length : float, optional
+            Druckverlust über die Referenzlänge ``length`` [Pa].
+            Beispiel: ``FixedPressureDropPerLength(3000, 5)`` bedeutet
+            3_000 Pa über 5 m.
+        length : float, optional
+            Referenzbauteillänge [m], Standard 1 m.
         """
-        if L < 0:
-            raise ValueError("L muss >= 0 sein.")
-        if grad_pa_per_m < 0:
-            raise ValueError("grad_pa_per_m muss >= 0 sein.")
-        self.L = float(L)
-        self.grad_pa_per_m = float(grad_pa_per_m)
+        if length < 0:
+            raise ValueError("length muss >= 0 sein.")
+        if dp_per_length < 0:
+            raise ValueError("dp_per_length muss >= 0 sein.")
+        self.length = float(length)
+        self.dp_per_length = float(dp_per_length)
 
     def calc(self, transport_properties: Any, m_flow: float) -> float:
-        # m_flow wird absichtlich ignoriert (modellunabhängig von Durchfluss).
-        return self.grad_pa_per_m * self.L
+        """Berechne den Druckverlust in Pa über die Referenzlänge.
+
+        Rückgabewert ist genau ``dp_per_length`` (Druckverlust über ``length``).
+        Segmentweise Skalierung mit ``L_seg`` erfolgt im HX-Modell.
+        """
+        return self.dp_per_length

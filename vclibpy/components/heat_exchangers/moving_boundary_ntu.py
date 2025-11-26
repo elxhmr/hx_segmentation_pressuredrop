@@ -290,10 +290,13 @@ class MovingBoundaryNTU(BasicNTU, abc.ABC):
                 'dT_max': {'sc': dT_max_sc, 'lat': dT_max_lat, 'sh': dT_max_sh}
             }
         
-        # Return segmented phases
+        # Return segmented phases. If a geometric length is available, pass it so
+        # that segments can report their representative length.
         segments_dict = self.segmentation.segment_all_phases(
-            Q_sc=Q_sc, Q_lat=Q_lat, Q_sh=Q_sh,
-            dT_max_sc=dT_max_sc, dT_max_lat=dT_max_lat, dT_max_sh=dT_max_sh
+            A_sc=Q_sc, A_lat=Q_lat, A_sh=Q_sh,
+            dT_max_sc=dT_max_sc, dT_max_lat=dT_max_lat, dT_max_sh=dT_max_sh,
+            length_total=getattr(self, "length_hx", None),
+            d_h=getattr(self, "d_h", None)
         )
         return segments_dict
     
@@ -465,9 +468,29 @@ class MovingBoundaryNTU(BasicNTU, abc.ABC):
                 if segment.state_inlet is None or segment.state_outlet is None:
                     continue
                 
-                # Calculate pressure drop using the model
+                # Calculate pressure drop using the model and scale with segment length.
+                # Allgemein:
+                #   dp_ref = pd_model.calc(...)    → Phasen-Δp bezogen auf eine
+                #                                    Referenzlänge L_ref.
+                #   L_ref  = length_nominal (falls vorhanden), sonst evtl. length.
+                #   L_seg  = Segmentlänge aus der Segmentierung.
+                # Für ein Segment mit Länge L_seg gilt dann:
+                #   Δp_seg = dp_ref * (L_seg / L_ref)
+                dp = 0.0
                 try:
-                    dp = pd_model.calc(None, m_flow) if pd_model is not None else 0.0
+                    if pd_model is not None:
+                        dp_ref = pd_model.calc(None, m_flow)  # = Δp_ref bezogen auf L_ref
+                        # Bevorzugt length_nominal (z.B. für QuadraticMassFlowDependent)
+                        L_ref = getattr(pd_model, "length_nominal", None)
+                        if L_ref in (None, 0):
+                            # Fallback: ggf. length aus einfachen Modellen
+                            L_ref = getattr(pd_model, "length", None)
+                        L_seg = getattr(segment, "length", None)
+                        if L_seg is not None and L_ref not in (None, 0):
+                            dp = dp_ref * (L_seg / L_ref)
+                        else:
+                            # Fallback: keine Segmentlänge bekannt → Referenz-Δp
+                            dp = dp_ref
                 except Exception:
                     dp = 0.0
                 
@@ -683,7 +706,9 @@ class MovingBoundaryNTUCondenser(MovingBoundaryNTU):
                 A_sc=A_sc, A_lat=A_lat, A_sh=A_sh,
                 dT_max_sc=(state_q0.T - inputs.T_con_in) if Q_sc > 0 else 0,
                 dT_max_lat=(state_q1.T - T_sc) if Q_lat > 0 else 0,
-                dT_max_sh=(self.state_inlet.T - T_sh) if Q_sh > 0 else 0
+                dT_max_sh=(self.state_inlet.T - T_sh) if Q_sh > 0 else 0,
+                length_total=getattr(self, "length_hx", None),
+                d_h=getattr(self, "d_h", None)
             )
 
             # Prune phases with no physical presence (no area or no heat)
@@ -985,7 +1010,9 @@ class MovingBoundaryNTUEvaporator(MovingBoundaryNTU):
                 A_sc=A_sc, A_lat=A_lat, A_sh=A_sh,
                 dT_max_sc=(T_sc - self.state_inlet.T) if Q_sc > 0 else 0,
                 dT_max_lat=(T_sh - self.state_inlet.T) if Q_lat > 0 else 0,
-                dT_max_sh=(inputs.T_eva_in - state_q1.T) if Q_sh > 0 else 0
+                dT_max_sh=(inputs.T_eva_in - state_q1.T) if Q_sh > 0 else 0,
+                length_total=getattr(self, "length_hx", None),
+                d_h=getattr(self, "d_h", None)
             )
 
             # Prune phases with no physical presence (no area or no heat)

@@ -142,11 +142,19 @@ def print_segment_summary(segments_dict, hx_type='condenser'):
         if phase in segments_dict:
             segments = segments_dict[phase]
             for segment in segments:
+                # Geometric information (length, area, hydraulic diameter) if available
+                seg_length = getattr(segment, "length", None)
+                seg_area = getattr(segment, "A", None)
+                seg_dh = getattr(segment, "d_h", None)
+
                 data.append({
                     "Phase": phase.upper(),
                     "Segment": f"{segment.segment_index + 1}/{segment.total_segments}",
                     "Q (W)": f"{segment.Q:.2f}",
                     "% of Phase": f"{segment.get_segment_fraction()*100:.1f}%",
+                    "Length (m)": f"{seg_length:.4f}" if seg_length is not None else "N/A",
+                    "Area (m²)": f"{seg_area:.4f}" if seg_area is not None else "N/A",
+                    "d_h (mm)": f"{seg_dh*1000.0:.3f}" if seg_dh is not None else "N/A",
                     "dT_max (K)": f"{segment.dT_max:.2f}",
                     "T_inlet (°C)": f"{segment.state_inlet.T - 273.15:.4f}" if segment.state_inlet else "N/A",
                     "p_inlet (bar)": f"{segment.state_inlet.p*1e-5:.3f}" if segment.state_inlet else "N/A",
