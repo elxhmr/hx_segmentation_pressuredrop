@@ -24,6 +24,7 @@ class MovingBoundaryNTU(BasicNTU, abc.ABC):
     def __init__(
         self,
         *args,
+        geometry: str | None = None,
         n_segments_sc: int = 3,
         n_segments_lat: int = 5,
         n_segments_sh: int = 3,
@@ -35,8 +36,7 @@ class MovingBoundaryNTU(BasicNTU, abc.ABC):
         apply_pressure_drops: bool = True,
         **kwargs,
     ):
-        """
-        Initialize MovingBoundaryNTU with segmentation options.
+        """Initialize MovingBoundaryNTU with segmentation and optional geometry.
         
         Args:
             n_segments_sc (int): Number of segments for subcooling phase. Default: 3
@@ -49,7 +49,44 @@ class MovingBoundaryNTU(BasicNTU, abc.ABC):
             liquid_pressure_drop: Optional pressure-drop model for liquid segments.
             apply_pressure_drops (bool): Enable application of pressure drops. Default: True
         """
+        # Ensure a minimal dummy area is available for the HeatExchanger base
+        # class; this will be overwritten if geometry is provided.
+        if "A" not in kwargs:
+            kwargs["A"] = 10.0
+
+        # Initialize base NTU/HX behaviour first
         super().__init__(*args, **kwargs)
+
+        # Geometry-related attributes (can be None if no geometry is provided)
+        self.geometry_name: str | None = geometry
+        self.geom = None
+        self.A_outer: float | None = None
+        self.A_inner: float | None = None
+        self.length_hx: float | None = None
+        self.d_h: float | None = None
+
+        # If a geometry name is provided, load it and configure areas/ratio
+        if geometry is not None:
+            try:
+                from vclibpy.components.heat_exchangers import hx_model
+
+                # geometry is the base name without .txt
+                self.geom = hx_model.load_geometry(geometry)
+
+                self.A_outer = float(self.geom.outer_area_m2)
+                self.A_inner = float(self.geom.inner_area_m2)
+                self.length_hx = float(self.geom.length_m)
+                self.d_h = float(self.geom.hydraulic_diameter_m)
+
+                # Use geometric areas if available to define A and the ratio
+                if self.A_outer is not None:
+                    # A is the outer / secondary side area in the NTU formulation
+                    self.A = self.A_outer
+
+                if self.A_outer is not None and self.A_inner not in (None, 0):
+                    self.ratio_outer_to_inner_area = self.A_outer / max(self.A_inner, 1e-12)
+            except Exception as exc:  # geometry is optional, so fail soft
+                logger.warning("Failed to load geometry '%s' for %s: %s", geometry, self.__class__.__name__, exc)
         self.use_segmentation = use_segmentation
         self.pressure_drop_model = pressure_drop_model
         # Optional phase-specific pressure-drop models; fall back to global if not set
@@ -502,6 +539,25 @@ class MovingBoundaryNTUCondenser(MovingBoundaryNTU):
     See parent classes for arguments.
     """
 
+    def __init__(
+        self,
+        flow_type: str = "counter",
+        ratio_outer_to_inner_area: float = 1.0,
+        **kwargs,
+    ):
+        """Initialize condenser with sensible defaults.
+
+        ``ratio_outer_to_inner_area`` will later be overwritten if a
+        geometry object is provided via the ``geometry=...`` keyword in the
+        base class.
+        """
+
+        super().__init__(
+            flow_type=flow_type,
+            ratio_outer_to_inner_area=ratio_outer_to_inner_area,
+            **kwargs,
+        )
+
     def calc(self, inputs: Inputs, fs_state: FlowsheetState) -> tuple[float, float]:
         """
         Calculate the heat exchanger with the NTU-Method based on the given inputs.
@@ -778,6 +834,25 @@ class MovingBoundaryNTUEvaporator(MovingBoundaryNTU):
 
     See parent classes for arguments.
     """
+
+    def __init__(
+        self,
+        flow_type: str = "counter",
+        ratio_outer_to_inner_area: float = 1.0,
+        **kwargs,
+    ):
+        """Initialize evaporator with sensible defaults.
+
+        ``ratio_outer_to_inner_area`` will later be overwritten if a
+        geometry object is provided via the ``geometry=...`` keyword in the
+        base class.
+        """
+
+        super().__init__(
+            flow_type=flow_type,
+            ratio_outer_to_inner_area=ratio_outer_to_inner_area,
+            **kwargs,
+        )
 
     def calc(self, inputs: Inputs, fs_state: FlowsheetState) -> tuple[float, float]:
         """

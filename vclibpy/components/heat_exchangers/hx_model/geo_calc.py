@@ -76,6 +76,7 @@ class GeometryResult:
 	inner_area_m2: float
 	length_m: float
 	hydraulic_diameter_m: float
+	wall_thickness_m: float | None
 	raw_data: Dict[str, Any]
 
 
@@ -199,12 +200,23 @@ def _compute_geometry_placeholders(params: Dict[str, Any]) -> GeometryResult:
 		inner_area = length
 		dh = 1.0
 
+	# Try to extract a meaningful wall thickness for use in WallTransfer
+	if geom_type == "plate":
+		wall_thickness_val = float(params.get("wallThickness_m", 0.0))
+	elif geom_type == "fin_tube":
+		wall_thickness_val = float(params.get("tubeWallThickness_m", 0.0))
+	else:
+		wall_thickness_val = 0.0
+
+	wall_thickness = wall_thickness_val if wall_thickness_val > 0 else None
+
 	return GeometryResult(
 		type=geom_type,
 		outer_area_m2=outer_area,
 		inner_area_m2=inner_area,
 		length_m=length,
 		hydraulic_diameter_m=dh,
+		wall_thickness_m=wall_thickness,
 		raw_data=params,
 	)
 
@@ -219,7 +231,12 @@ def load_geometry(filename: str | Path) -> GeometryResult:
 		``hx_model`` directory.
 	"""
 
-	params = _parse_geometry_txt(filename)
+	# Accept both base names (e.g. "plate_demo") and explicit TXT paths
+	name = str(filename)
+	if not name.lower().endswith(".txt"):
+		name = f"{name}.txt"
+
+	params = _parse_geometry_txt(name)
 	return _compute_geometry_placeholders(params)
 
 
