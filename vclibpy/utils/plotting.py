@@ -901,45 +901,28 @@ def show_hx_temperature_profiles(
 
                 x0 = x1
 
-        # Smooth interpolation mit PCHIP (monoton)
+        # Lineare Verbindung der Segmentgrenzen ohne zusätzliche Glättung
         if len(x_states) > 1 and len(T_ref) == len(x_states):
-            x_smooth = np.linspace(0, A_total, 200)
+            # Kältemittel-Temperatur: Punkte an Segmentgrenzen verbinden
+            ax.plot(x_states, T_ref, color='tab:red', linewidth=2, label='Kältemittel')
 
-            # Kältemittel-Temperatur (immer Vorwärtsrichtung entlang Fläche)
-            T_ref_finite_idx = [i for i, v in enumerate(T_ref) if v is not None and np.isfinite(v)]
-            T_ref_curve = None
-            if len(T_ref_finite_idx) > 1:
-                T_ref_interp = PchipInterpolator([x_states[i] for i in T_ref_finite_idx],
-                                                 [T_ref[i] for i in T_ref_finite_idx])
-                T_ref_curve = T_ref_interp(x_smooth)
-                ax.plot(x_smooth, T_ref_curve, color='tab:red', linewidth=2, label='Kältemittel')
-
-            # Sekundärmedium-Temperatur (Richtung abhängig von flow_type)
-            T_sec_curve = None
+            # Sekundärmedium-Temperatur: falls vorhanden, ebenfalls linear verbinden
             if len(T_sec) == len(x_states):
-                T_sec_finite_idx = [i for i, v in enumerate(T_sec) if v is not None and np.isfinite(v)]
-                if len(T_sec_finite_idx) > 1:
-                    T_sec_interp = PchipInterpolator([x_states[i] for i in T_sec_finite_idx],
-                                                     [T_sec[i] for i in T_sec_finite_idx])
-                    T_sec_curve = T_sec_interp(x_smooth)
-                    ax.plot(x_smooth, T_sec_curve, color='tab:blue', linewidth=2, label='Sekundärmedium')
+                ax.plot(x_states, T_sec, color='tab:blue', linewidth=2, label='Sekundärmedium')
 
             # Flussrichtungspfeile einzeichnen (Marker statt Text)
-            if show_flow_arrows and x_smooth.size > 0:
-                # Positionen für Pfeile (in Prozent der Gesamtfläche)
+            if show_flow_arrows:
                 frac_positions = [0.15, 0.45, 0.75]
-                arrow_x = [f * A_total for f in frac_positions if 0.0 <= f <= 1.0]
+                arrow_x = [x_states[0] + f * (x_states[-1] - x_states[0]) for f in frac_positions]
                 # Primärfluss: immer vorwärts (→) entlang steigender Fläche
-                if T_ref_curve is not None:
-                    # Wähle y-Werte durch Interpolation der Kurve
-                    y_ref_sel = np.interp(arrow_x, x_smooth, T_ref_curve)
-                    ax.plot(arrow_x, y_ref_sel, linestyle='None', marker='>', color='tab:red', markersize=8, label=None)
+                y_ref_sel = np.interp(arrow_x, x_states, T_ref)
+                ax.plot(arrow_x, y_ref_sel, linestyle='None', marker='>', color='tab:red', markersize=8, label=None)
                 # Sekundärfluss: Richtung abhängig vom flow_type
-                if T_sec_curve is not None:
+                if len(T_sec) == len(x_states):
                     sec_direction = 'forward'
                     if str(flow_type).lower() == 'counter':
                         sec_direction = 'backward'
-                    y_sec_sel = np.interp(arrow_x, x_smooth, T_sec_curve)
+                    y_sec_sel = np.interp(arrow_x, x_states, T_sec)
                     marker_style = '>' if sec_direction == 'forward' else '<'
                     ax.plot(arrow_x, y_sec_sel, linestyle='None', marker=marker_style, color='tab:blue', markersize=8, label=None)
 

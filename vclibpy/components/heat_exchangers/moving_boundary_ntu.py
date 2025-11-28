@@ -912,7 +912,8 @@ class MovingBoundaryNTUEvaporator(MovingBoundaryNTU):
         self.m_flow_secondary = inputs.m_flow_eva  # [kg/s]
         self.calc_secondary_cp(T=inputs.T_eva_in)
 
-        # First we separate the flow:
+        # First we separate the flow (using local saturation at evaporator inlet pressure
+        # to obtain sharper phase boundaries for subcooling / two-phase / superheat):
         Q_sc, Q_lat, Q_sh, state_q0, state_q1 = self.separate_phases(
             self.state_outlet,
             self.state_inlet,

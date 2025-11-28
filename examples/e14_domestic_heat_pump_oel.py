@@ -108,7 +108,7 @@ def main():
 
     # --- Steady State rechnen mit Segmentierung ---
     print("Berechne Wärmepumpen-Kreislauf mit Segmentierung und Druckverlusten...")
-    fs = hp.calc_steady_state(inputs=inputs, show_iteration=False)
+    fs = hp.calc_steady_state(inputs=inputs, show_iteration=True)
 
     # --- Ergebnisse ausgeben ---
     if fs is not None:
