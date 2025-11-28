@@ -459,7 +459,8 @@ class BaseCycle:
                         v = fs_state.get(key)
                         segs_con[key.split('_')[-1]] = list(getattr(v, 'value', v))
                 if segs_con:
-                    self.condenser.apply_segment_pressure_drops(segs_con, self.condenser.m_flow, fs_state)
+                    OCR = getattr(inputs, "OCR", 0.0)
+                    self.condenser.apply_segment_pressure_drops(segs_con, self.condenser.m_flow, fs_state, OCR=OCR)
 
             # Evaporator
             if hasattr(self.evaporator, 'apply_segment_pressure_drops'):
@@ -470,7 +471,8 @@ class BaseCycle:
                         v = fs_state.get(key)
                         segs_eva[key.split('_')[-1]] = list(getattr(v, 'value', v))
                 if segs_eva:
-                    self.evaporator.apply_segment_pressure_drops(segs_eva, self.evaporator.m_flow, fs_state)
+                    OCR = getattr(inputs, "OCR", 0.0)
+                    self.evaporator.apply_segment_pressure_drops(segs_eva, self.evaporator.m_flow, fs_state, OCR=OCR)
 
             # Remove erroneous EV outlet pressure override: keep pressure gradient across evaporator.
             # We only need to ensure EV inlet = final condenser outlet; do NOT recalc EV outlet with evap outlet p.

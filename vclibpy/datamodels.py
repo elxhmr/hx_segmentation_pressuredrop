@@ -172,7 +172,8 @@ class Inputs(VariableContainer):
             m_flow_con: float = None,
             dT_eva_superheating: float = None,
             dT_con_subcooling: float = None,
-            T_ambient: float = None
+            T_ambient: float = None,
+            OCR: float = 0.0,
     ):
         """
         Initializes an Inputs object with parameters representing external conditions
@@ -187,6 +188,7 @@ class Inputs(VariableContainer):
             dT_eva_superheating (float): Super-heating after evaporator (unit: K).
             dT_con_subcooling (float): Subcooling after condenser (unit: K).
             T_ambient (float): Ambient temperature of the machine (unit: K).
+            OCR (float): Oil-circulation-ratio m_dot_oil / m_dot_ref (unit: -).
         """
         super().__init__()
         self.set(
@@ -238,4 +240,10 @@ class Inputs(VariableContainer):
             value=T_ambient,
             unit="K",
             description="Ambient temperature of machine"
+        )
+        self.set(
+            name="OCR",
+            value=OCR,
+            unit="-",
+            description="Oil circulation ratio m_dot_oil / m_dot_ref"
         )

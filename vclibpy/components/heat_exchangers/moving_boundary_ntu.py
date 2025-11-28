@@ -367,7 +367,7 @@ class MovingBoundaryNTU(BasicNTU, abc.ABC):
 
         return min(area, self.A)
 
-    def apply_segment_pressure_drops(self, segments_dict, m_flow, fs_state):
+    def apply_segment_pressure_drops(self, segments_dict, m_flow, fs_state, OCR: float = 0.0):
         """
         Apply pressure drops to heat exchanger segments and recalculate outlet states.
         
@@ -491,6 +491,10 @@ class MovingBoundaryNTU(BasicNTU, abc.ABC):
                         else:
                             # Fallback: keine Segmentlänge bekannt → Referenz-Δp
                             dp = dp_ref
+
+                        # Oil-circulation-Ratio-Korrektur: Druckverlust * (1 + OCR)
+                        if OCR:
+                            dp *= (1.0 + OCR)
                 except Exception:
                     dp = 0.0
                 
@@ -623,6 +627,8 @@ class MovingBoundaryNTUCondenser(MovingBoundaryNTU):
         T_sh = T_sc + self.calc_secondary_Q_flow(Q_lat) / self.m_flow_secondary_cp
         T_out = T_sh + self.calc_secondary_Q_flow(Q_sh) / self.m_flow_secondary_cp
 
+        OCR = float(getattr(inputs, "OCR", 0.0) or 0.0)
+
         # 1. Regime: Subcooling
         Q_sc_ntu, A_sc = 0, 0
         k_sc = 0
@@ -631,6 +637,8 @@ class MovingBoundaryNTUCondenser(MovingBoundaryNTU):
             # Get transport properties:
             tra_prop_ref_con = self.med_prop.calc_mean_transport_properties(state_q0, self.state_outlet)
             alpha_ref_wall = self.calc_alpha_liquid(tra_prop_ref_con)
+            if OCR:
+                alpha_ref_wall *= (1.0 - OCR)
 
             # Only use still available area:
             A_sc = self.iterate_area(dT_max=(state_q0.T - inputs.T_con_in),
@@ -649,13 +657,15 @@ class MovingBoundaryNTUCondenser(MovingBoundaryNTU):
         k_lat = 0
         if Q_lat > 0:
             self.set_primary_cp(np.inf)
-            # Get transport properties:
+            # Get transport properties (primary side only: OCR-relevant):
             alpha_ref_wall = self.calc_alpha_two_phase(
                 state_q0=state_q0,
                 state_q1=state_q1,
                 fs_state=fs_state,
                 inputs=inputs
             )
+            if OCR:
+                alpha_ref_wall *= (1.0 - OCR)
 
             A_lat = self.iterate_area(dT_max=(state_q1.T - T_sc),
                                       alpha_pri=alpha_ref_wall,
@@ -678,6 +688,8 @@ class MovingBoundaryNTUCondenser(MovingBoundaryNTU):
             # Get transport properties:
             tra_prop_ref_con = self.med_prop.calc_mean_transport_properties(self.state_inlet, state_q1)
             alpha_ref_wall = self.calc_alpha_gas(tra_prop_ref_con)
+            if OCR:
+                alpha_ref_wall *= (1.0 - OCR)
 
             # Only use still available area:
             A_sh = self.A - A_sc - A_lat
@@ -920,6 +932,8 @@ class MovingBoundaryNTUEvaporator(MovingBoundaryNTU):
         T_sc = T_sh - Q_lat / self.m_flow_secondary_cp
         T_out = T_sc - Q_sc / self.m_flow_secondary_cp
 
+        OCR = float(getattr(inputs, "OCR", 0.0) or 0.0)
+
         # 1. Regime: Superheating
         Q_sh_ntu, A_sh = 0, 0
         k_sh = 0
@@ -928,6 +942,8 @@ class MovingBoundaryNTUEvaporator(MovingBoundaryNTU):
             # Get transport properties:
             tra_prop_ref_eva = self.med_prop.calc_mean_transport_properties(self.state_outlet, state_q1)
             alpha_ref_wall = self.calc_alpha_gas(tra_prop_ref_eva)
+            if OCR:
+                alpha_ref_wall *= (1.0 - OCR)
 
             if Q_lat > 0:
                 A_sh = self.iterate_area(dT_max=(inputs.T_eva_in - state_q1.T),
@@ -960,6 +976,8 @@ class MovingBoundaryNTUEvaporator(MovingBoundaryNTU):
                 fs_state=fs_state,
                 inputs=inputs
             )
+            if OCR:
+                alpha_ref_wall *= (1.0 - OCR)
 
             if Q_sc > 0:
                 A_lat = self.iterate_area(dT_max=(T_sh - self.state_inlet.T),
@@ -985,6 +1003,8 @@ class MovingBoundaryNTUEvaporator(MovingBoundaryNTU):
             # Get transport properties:
             tra_prop_ref_eva = self.med_prop.calc_mean_transport_properties(state_q0, self.state_inlet)
             alpha_ref_wall = self.calc_alpha_liquid(tra_prop_ref_eva)
+            if OCR:
+                alpha_ref_wall *= (1.0 - OCR)
 
             # Only use still available area:
             A_sc = self.A - A_sh - A_lat
