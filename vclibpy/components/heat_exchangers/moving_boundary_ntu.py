@@ -876,6 +876,11 @@ class MovingBoundaryNTUEvaporator(MovingBoundaryNTU):
         self,
         flow_type: str = "counter",
         ratio_outer_to_inner_area: float = 1.0,
+        # optionale Einstellungen für dynamische LAT-Segmentierung
+        dynamic_seg_use: bool = False,
+        dynamic_seg_add_segments: int = 2,
+        dynamic_seg_error_dt: float = 0.1,
+        dynamic_seg_max_refine: int = 3,
         **kwargs,
     ):
         """Initialize evaporator with sensible defaults.
@@ -890,6 +895,12 @@ class MovingBoundaryNTUEvaporator(MovingBoundaryNTU):
             ratio_outer_to_inner_area=ratio_outer_to_inner_area,
             **kwargs,
         )
+
+        # Einstellungen für optionale dynamische LAT-Segmentierung
+        self.dynamic_seg_use = bool(dynamic_seg_use)
+        self.dynamic_seg_add_segments = max(1, int(dynamic_seg_add_segments))
+        self.dynamic_seg_error_dt = float(dynamic_seg_error_dt)
+        self.dynamic_seg_max_refine = max(1, int(dynamic_seg_max_refine))
 
     def calc(self, inputs: Inputs, fs_state: FlowsheetState) -> tuple[float, float]:
         """
@@ -1026,7 +1037,7 @@ class MovingBoundaryNTUEvaporator(MovingBoundaryNTU):
 
         # Store segmentation data if enabled
         if self.use_segmentation:
-            # Build equal-area segments per phase
+            # Build equal-area segments per phase (Single-Pass)
             segments_dict = self.segmentation.segment_all_phases(
                 A_sc=A_sc, A_lat=A_lat, A_sh=A_sh,
                 dT_max_sc=(T_sc - self.state_inlet.T) if Q_sc > 0 else 0,
@@ -1130,8 +1141,29 @@ class MovingBoundaryNTUEvaporator(MovingBoundaryNTU):
             except Exception:
                 pass
 
-            # Additional check: dT_min within segments (pinchpoint) using the same
-            # secondary-side bounds used during segment computation
+            # Optional: LAT-dynamik – nur n_segments_lat für ZUKÜNFTIGE Iterationen anpassen
+            try:
+                if 'lat' in segments_dict and segments_dict['lat'] and self.dynamic_seg_use:
+                    last_seg = segments_dict['lat'][-1]
+                    if last_seg.state_inlet and last_seg.state_outlet:
+                        dT_seg_last = last_seg.state_outlet.T - last_seg.state_inlet.T
+                        print(
+                            f"[dynseg] LAT-last (single-pass): T_in={last_seg.state_inlet.T:.4f} K, "
+                            f"T_out={last_seg.state_outlet.T:.4f} K, dT_seg={dT_seg_last:.5f} K"
+                        )
+
+                        if dT_seg_last > self.dynamic_seg_error_dt:
+                            # Erhöhe nur die gewünschte Anzahl an LAT-Segmenten,
+                            # ohne in dieser Iteration neu zu segmentieren.
+                            current = getattr(self.segmentation, 'n_segments_lat', None)
+                            if current is not None:
+                                new_val = int(current) + int(self.dynamic_seg_add_segments)
+                                new_val = max(1, min(new_val, self.dynamic_seg_max_refine * max(1, current)))
+                                self.segmentation.n_segments_lat = new_val
+            except Exception:
+                pass
+
+            # dT_min über endgültige Segmente bestimmen
             dT_min_segments = float('inf')
             for phase_key in ['sc', 'lat', 'sh']:
                 segs = segments_dict.get(phase_key, [])

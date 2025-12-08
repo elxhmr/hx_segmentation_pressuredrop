@@ -41,16 +41,16 @@ def main():
             lambda_=236,
             thickness=geom_condenser.wall_thickness_m or 2e-3,
         ),
-        liquid_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=5000),
+        liquid_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=1000),
         secondary_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=5000),
         use_segmentation=True,  # Standardmäßig aktiviert
-        n_segments_sc=10,      # SC in 3 Segmente, Standardwert
-        n_segments_lat=5,     # LAT in 5 Segmente, Standardwert
+        n_segments_sc=3,      # SC in 3 Segmente, Standardwert
+        n_segments_lat=10,     # LAT in 5 Segmente, Standardwert
         n_segments_sh=3,      # SH in 3 Segmente, Standardwert
         # Phasenspezifische Druckverlust-Korrelationen (hier alle konstant als Beispiel)
-        two_phase_pressure_drop=FixedPressureDropPerLength(dp_per_length=10_000, length=1.0),
-        gas_pressure_drop=ConstantPressureDrop(dp=2000),
-        liquid_pressure_drop=ConstantPressureDrop(dp=2000),
+        two_phase_pressure_drop=QuadraticMassFlowDependent(mdot_nominal=0.1, pressureDrop_nominal=10000.0, length_nominal=1,),
+        gas_pressure_drop=QuadraticMassFlowDependent(mdot_nominal=0.1, pressureDrop_nominal=10000.0, length_nominal=1,),
+        liquid_pressure_drop=QuadraticMassFlowDependent(mdot_nominal=0.1, pressureDrop_nominal=10000.0, length_nominal=1,),
     )
     
     evaporator = moving_boundary_ntu.MovingBoundaryNTUEvaporator(
@@ -63,21 +63,27 @@ def main():
             lambda_=236,
             thickness=geom_evaporator.wall_thickness_m or 2e-3,
         ),
-        liquid_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=5000),
-        secondary_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=25),
+        liquid_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=1000),
+        secondary_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=100),
         use_segmentation=True,  # Standardmäßig aktiviert
+        # Dynamische Segmentierung im LAT-Bereich: aktiv, 2 zusätzliche Segmente,
+        # Fehlergrenze 0.1 K, maximal 3 Verfeinerungsschritte
+        dynamic_seg_use=True,
+        dynamic_seg_add_segments=2,
+        dynamic_seg_error_dt=0.1,
+        dynamic_seg_max_refine=3,
         n_segments_sc=3,      # SC in 3 Segmente, Standardwert
-        n_segments_lat=5,     # LAT in 5 Segmente, Standardwert
+        n_segments_lat=10,     # LAT in 5 Segmente, Standardwert
         n_segments_sh=3,      # SH in 3 Segmente, Standardwert
         # Phasenspezifische Druckverlust-Korrelationen:
         # Zweiphasenbereich mit quadratischer m_dot-Abhängigkeit, linear in der Nähe von 0
         gas_pressure_drop=QuadraticMassFlowDependent(
             mdot_nominal=0.1,               # Nominaler Massenstrom des Verdampfers
-            pressureDrop_nominal=5000.0,    # 3 kPa über length_nominal
+            pressureDrop_nominal=1000.0,    # 3 kPa über length_nominal
             length_nominal=1,
         ),
-        two_phase_pressure_drop=ConstantPressureDrop(dp=3000),
-        liquid_pressure_drop=ConstantPressureDrop(dp=2000),
+        two_phase_pressure_drop=QuadraticMassFlowDependent(mdot_nominal=0.1, pressureDrop_nominal=1000.0, length_nominal=1,),
+        liquid_pressure_drop=QuadraticMassFlowDependent(mdot_nominal=0.1, pressureDrop_nominal=1000.0, length_nominal=1,),
     )
     
     expansion_valve = Bernoulli(A=0.1)
@@ -108,7 +114,7 @@ def main():
 
     # --- Steady State rechnen mit Segmentierung ---
     print("Berechne Wärmepumpen-Kreislauf mit Segmentierung und Druckverlusten...")
-    fs = hp.calc_steady_state(inputs=inputs, show_iteration=True)
+    fs = hp.calc_steady_state(inputs=inputs, show_iteration=False)
 
     # --- Ergebnisse ausgeben ---
     if fs is not None:

@@ -288,114 +288,80 @@ class BaseCycle:
         if show_iteration:
             plt.close(fig_iterations)
 
-        # --- OUTER LOOP: Iterate to account for pressure drops ---
-        # Enable pressure drops and iterate until outlet pressures stabilize
+        # --- OUTER LOOP: Global fixed-point incl. pressure drops ---
+        # Now enable pressure drops and iterate on the full cycle until
+        # all interface pressures (before/after components) stop changing.
         if hasattr(self.evaporator, 'apply_pressure_drops') and hasattr(self.condenser, 'apply_pressure_drops'):
             self.evaporator.apply_pressure_drops = True
             self.condenser.apply_pressure_drops = True
-            
-            # Store the converged pressures without drops (targets at HX outlets)
-            p_1_target = p_1
-            p_2_target = p_2
 
-            # Working pressures used inside calc_states during outer loop.
-            # These are adjusted so that after segment pressure drops,
-            # the resulting HX outlet pressures converge to the fixed targets above.
-            p_1_used = p_1_target
-            p_2_used = p_2_target
-            
-            # Iterate with pressure drops enabled (higher cap) and break early on convergence
-            max_outer_iters = 30  # increased cap
-            tol_pa = 100  # convergence tolerance in Pa (tightened)
-            prev_h_comp_in = None
-            prev_h_comp_out = None
-            prev_p_comp_in = None
-            prev_p_comp_out = None
-            for dp_iter in range(max_outer_iters):
-                # Calculate states with current pressures
+            # Use the converged pressures without drops as initial guess
+            p_1_curr = p_1
+            p_2_curr = p_2
+
+            max_outer_iters = 30
+            tol_pa = 50.0  # convergence tolerance for pressures in Pa
+
+            # Helper to compute a vector of all relevant interface pressures
+            def _get_interface_pressures():
+                vals = []
+                for state in [
+                    getattr(self.evaporator, 'state_inlet', None),
+                    getattr(self.evaporator, 'state_outlet', None),
+                    getattr(self.compressor, 'state_inlet', None),
+                    getattr(self.compressor, 'state_outlet', None),
+                    getattr(self.condenser, 'state_inlet', None),
+                    getattr(self.condenser, 'state_outlet', None),
+                    getattr(self.expansion_valve, 'state_inlet', None),
+                    getattr(self.expansion_valve, 'state_outlet', None),
+                ]:
+                    if state is not None:
+                        vals.append(state.p)
+                return np.array(vals) if vals else np.array([])
+
+            prev_p_vec = None
+
+            for _ in range(max_outer_iters):
+                # 1) Vollständigen Kreisprozess mit aktuellen Drücken rechnen
                 try:
-                    self.calc_states(p_1_used, p_2_used, inputs=inputs, fs_state=fs_state)
+                    self.calc_states(p_1_curr, p_2_curr, inputs=inputs, fs_state=fs_state)
                 except Exception as _:
                     break
 
-                # Calculate HX with pressure drops enabled
                 try:
                     self.evaporator.calc(inputs=inputs, fs_state=fs_state)
                     self.condenser.calc(inputs=inputs, fs_state=fs_state)
                 except Exception as _:
                     break
 
-                # After pressure drops: ensure expansion valve inlet fully inherits
-                # the updated condenser outlet state (pressure AND enthalpy), not just enthalpy.
-                try:
-                    if self.condenser.state_outlet is not None and self.expansion_valve is not None:
-                        self.expansion_valve.state_inlet = self.condenser.state_outlet
-                        # Recompute expansion valve outlet at current evaporator target pressure
-                        self.expansion_valve.calc_outlet(p_outlet=p_1_used)
-                        # Update evaporator inlet accordingly (will be recalculated next iteration)
-                        self.evaporator.state_inlet = self.expansion_valve.state_outlet
-                except Exception:
-                    pass
+                # 2) Schnittstellen-Kontinuität erzwingen
+                if self.condenser.state_outlet is not None:
+                    self.expansion_valve.state_inlet = self.condenser.state_outlet
+                if self.expansion_valve.state_outlet is not None:
+                    self.evaporator.state_inlet = self.expansion_valve.state_outlet
+                if self.evaporator.state_outlet is not None:
+                    self.compressor.state_inlet = self.evaporator.state_outlet
 
-                # Get outlet pressures after pressure drop calculation
-                p_1_outlet = self.evaporator.state_outlet.p if self.evaporator.state_outlet else p_1_used
-                p_2_outlet = self.condenser.state_outlet.p if self.condenser.state_outlet else p_2_used
+                # 3) Neue "effektive" Verdampfungs-/Kondensationsdrücke aus den HX-Ausgängen
+                if self.evaporator.state_outlet is not None:
+                    p_1_curr = self.evaporator.state_outlet.p
+                if self.condenser.state_outlet is not None:
+                    p_2_curr = self.condenser.state_outlet.p
 
-                # TEMP logging: actual SH/SC computed at outlet pressures (one-liner)
-                try:
-                    T_sat_eva = self.med_prop.calc_state("PQ", p_1_outlet, 1).T
-                    dt_sh_act = (self.evaporator.state_outlet.T - T_sat_eva)
-                except Exception:
-                    dt_sh_act = float('nan')
-                try:
-                    T_sat_con = self.med_prop.calc_state("PQ", p_2_outlet, 0).T
-                    dt_sc_act = (T_sat_con - self.condenser.state_outlet.T)
-                except Exception:
-                    dt_sc_act = float('nan')
-                # Compressor point convergence diagnostics
-                h_comp_in = self.compressor.state_inlet.h if self.compressor.state_inlet else float('nan')
-                h_comp_out = self.compressor.state_outlet.h if self.compressor.state_outlet else float('nan')
-                p_comp_in = self.compressor.state_inlet.p if self.compressor.state_inlet else float('nan')
-                p_comp_out = self.compressor.state_outlet.p if self.compressor.state_outlet else float('nan')
-                dh_in = (h_comp_in - prev_h_comp_in) if prev_h_comp_in is not None else float('nan')
-                dh_out = (h_comp_out - prev_h_comp_out) if prev_h_comp_out is not None else float('nan')
-                dp_in = (p_comp_in - prev_p_comp_in) if prev_p_comp_in is not None else float('nan')
-                dp_out = (p_comp_out - prev_p_comp_out) if prev_p_comp_out is not None else float('nan')
-                res1 = (p_1_outlet - p_1_target)
-                res2 = (p_2_outlet - p_2_target)
-                logger.info(
-                    f"[outer {dp_iter+1}/{max_outer_iters}] compressor_inlet: p={p_comp_in/1e5:.3f} bar, h={h_comp_in/1000:.3f} kJ/kg"
-                )
+                # 4) Fixpunkt-Kriterium auf allen Schnittstellen-Drücken
+                p_vec = _get_interface_pressures()
+                if prev_p_vec is not None and p_vec.size == prev_p_vec.size:
+                    if np.all(np.abs(p_vec - prev_p_vec) < tol_pa):
+                        break
+                prev_p_vec = p_vec.copy() if p_vec.size else None
 
-                # Check if stabilized w.r.t fixed targets OR compressor state fixed-point
-                tol_h = 50.0  # J/kg (requested)
-                comp_fixed = (prev_h_comp_in is not None and prev_h_comp_out is not None 
-                              and abs(dh_in) < tol_h and abs(dh_out) < tol_h)
-                if (abs(p_1_outlet - p_1_target) < tol_pa and abs(p_2_outlet - p_2_target) < tol_pa) or comp_fixed:
-                    break  # Pressure drops have stabilized
-
-                # Update working pressures to reduce residual (drive outlet → target)
-                # Use a relaxation factor to avoid oscillation
-                factor = 0.6
-                p_1_used = p_1_used + factor * (p_1_target - p_1_outlet)
-                p_2_used = p_2_used + factor * (p_2_target - p_2_outlet)
-
-                # Update previous compressor point for next iteration
-                prev_h_comp_in = h_comp_in
-                prev_h_comp_out = h_comp_out
-                prev_p_comp_in = p_comp_in
-                prev_p_comp_out = p_comp_out
-            
-            # After outer loop convergence, recalculate states one final time with stabilized pressures
+            # Finale Konsistenzrechnung mit den letzten Drücken
             try:
-                # Use the fixed targets as the final cycle pressures
-                self.calc_states(p_1_target, p_2_target, inputs=inputs, fs_state=fs_state)
+                self.calc_states(p_1_curr, p_2_curr, inputs=inputs, fs_state=fs_state)
                 self.evaporator.calc(inputs=inputs, fs_state=fs_state)
                 self.condenser.calc(inputs=inputs, fs_state=fs_state)
-                
-                # Ensure compressor inlet matches evaporator outlet after all calculations
                 self.compressor.state_inlet = self.evaporator.state_outlet
-            except:
+            except Exception:
                 pass
 
         # Calculate the heat flow rates for the selected states.
