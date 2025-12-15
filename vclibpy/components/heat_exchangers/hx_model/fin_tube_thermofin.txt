@@ -1,0 +1,13 @@
+# Fin-and-tube geometry for an air-source evaporator
+# Tube bundle arranged in rows; fin pitch specified per meter of flow length
+type=fin_tube
+finnedTubeLength_m=3.2,
+nSerialTubes=24,
+serialTubeDistance_m=50e-3,
+nParallelTubes=8,
+parallelTubeDistance_m=50e-3,
+finThickness_m=3.5e-3,
+finPitch_m=10e-3,
+tubeInnerDiameter_m=16e-3,
+tubeWallThickness_m=1.2e-3,
+nTubeSideParallelHydraulicFlows=8

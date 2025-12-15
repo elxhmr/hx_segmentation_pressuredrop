@@ -1,0 +1,11 @@
+# Simple stainless-steel plate heat exchanger geometry
+# Length/width refer to single plate dimensions (m)
+# num_channels counts refrigerant passages (plates - 1 for single-pass unit)
+type=plate
+wallThickness_m=0.75e-3,
+patternWaveLength_m=12.6e-3,
+width_m=0.1,
+length_m=0.3,
+phi_deg=35,
+numberOfPlates=50,
+patternAmplitude_m=2e-3
