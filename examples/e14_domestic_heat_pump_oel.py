@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import logging
 
 from vclibpy import Inputs
-from vclibpy.flowsheets import StandardCycle
+from vclibpy.flowsheets import StandardCycleWithDP
 from vclibpy.components.heat_exchangers import moving_boundary_ntu, hx_model
 from vclibpy.components import heat_transfer
 from vclibpy.components.expansion_valves import Bernoulli
@@ -89,7 +89,7 @@ def main():
     expansion_valve = Bernoulli(A=0.1)
     compressor = RotaryCompressor(N_max=125, V_h=19e-6)
 
-    hp = StandardCycle(
+    hp = StandardCycleWithDP(
         evaporator=evaporator,
         condenser=condenser,
         fluid="Propane",
