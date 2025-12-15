@@ -12,6 +12,12 @@
 Repository with a **V**apor **C**ompression **Lib**rary in **Py**thon for steady state process design and simulation.
 It enables use of RefProp and CoolProp as well as different compressors, heat exchangers and flowsheet configurations for heat pumps and chillers.
 
+The library now exposes a pressure-drop-aware standard cycle (`StandardCycleWITHdp`) that keeps `base.py` untouched while
+deriving component port pressures from condensation/evaporation levels. Pinch feasibility is detected inside the heat
+exchangers and reported back to the cycle via the error sign, and an inner Δp iteration inside `calc_states` reconciles
+HX pressure losses with the reference pressure levels. For legacy calculations, segmentation and pressure-drop handling
+can be disabled to retain previous behaviour.
+
 # Installation
 
 To install, run
