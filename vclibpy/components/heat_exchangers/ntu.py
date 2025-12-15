@@ -1,5 +1,6 @@
 import logging
 import abc
+import logging
 
 import numpy as np
 from vclibpy.components.heat_exchangers.heat_exchanger import HeatExchanger
