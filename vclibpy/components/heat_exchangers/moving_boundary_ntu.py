@@ -101,6 +101,24 @@ class MovingBoundaryNTU(BasicNTU, abc.ABC):
         )
 
     @staticmethod
+    def _apply_pinch_penalty(error: float, dT_min: float, drives_lower_pressure: bool) -> float:
+        """Return an error value that enforces pinch feasibility via the BaseCycle solver.
+
+        Args:
+            error: Nominal NTU error.
+            dT_min: Minimal temperature difference detected (may be negative).
+            drives_lower_pressure: ``True`` if a negative return value should decrease the
+                pressure level (evaporator), ``False`` to increase it (condenser).
+        """
+        if isinstance(dT_min, (int, float)) and dT_min < 0:
+            magnitude = abs(error) if isinstance(error, (int, float)) else 1.0
+            penalty = -magnitude if drives_lower_pressure else -magnitude
+            if magnitude == 0:
+                penalty = -1.0
+            return penalty
+        return error
+
+    @staticmethod
     def _safe_lmtd(dT1: float, dT2: float, eps: float = 1e-6) -> float:
         """
         Compute LMTD robustly for two temperature differences.
@@ -858,6 +876,7 @@ class MovingBoundaryNTUCondenser(MovingBoundaryNTU):
             dT_min_ScLat = state_q0.T - T_sc
             dT_min_overall = min(dT_min_in, dT_min_LatSH, dT_min_ScLat, dT_min_out)
 
+        error = self._apply_pinch_penalty(error, dT_min_overall, drives_lower_pressure=False)
         return error, dT_min_overall
 
 
@@ -1171,5 +1190,6 @@ class MovingBoundaryNTUEvaporator(MovingBoundaryNTU):
             dT_min_LatSh = T_sh - state_q1.T
             dT_min_overall = min(dT_min_out, dT_min_in, dT_min_ScLat, dT_min_LatSh)
 
+        error = self._apply_pinch_penalty(error, dT_min_overall, drives_lower_pressure=True)
         return error, dT_min_overall
 
