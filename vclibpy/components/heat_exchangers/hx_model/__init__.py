@@ -8,7 +8,11 @@ correlations.
 
 from .geo_calc import GeometryResult, load_geometry
 
+# Backwards-compatible alias used by older examples
+loadgeometry = load_geometry
+
 __all__ = [
-	"GeometryResult",
-	"load_geometry",
+        "GeometryResult",
+        "load_geometry",
+        "loadgeometry",
 ]

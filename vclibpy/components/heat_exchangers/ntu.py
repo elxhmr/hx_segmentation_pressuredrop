@@ -1,5 +1,6 @@
 import logging
 import abc
+import logging
 
 import numpy as np
 from vclibpy.components.heat_exchangers.heat_exchanger import HeatExchanger
@@ -28,7 +29,7 @@ class BasicNTU(HeatExchanger, abc.ABC):
             Typical values are around 20-30.
     """
 
-    def __init__(self, flow_type: str, ratio_outer_to_inner_area: float, **kwargs):
+    def __init__(self, flow_type: str, ratio_outer_to_inner_area: float | None = None, **kwargs):
         """
         Initializes BasicNTU.
 
@@ -45,7 +46,14 @@ class BasicNTU(HeatExchanger, abc.ABC):
             **kwargs: Additional keyword arguments passed to the parent class.
         """
         super().__init__(**kwargs)
-        self.ratio_outer_to_inner_area = ratio_outer_to_inner_area
+        if ratio_outer_to_inner_area is None:
+            geometry_ratio = None
+            geometry = getattr(self, "geometry", None)
+            if geometry and geometry.inner_area_m2 and geometry.inner_area_m2 > 0:
+                geometry_ratio = geometry.outer_area_m2 / geometry.inner_area_m2
+            self.ratio_outer_to_inner_area = geometry_ratio if geometry_ratio else 1.0
+        else:
+            self.ratio_outer_to_inner_area = ratio_outer_to_inner_area
 
         # Set primary cp:
         self._primary_cp = None
