@@ -29,7 +29,7 @@ def main():
     
     # --- Komponenten mit Segmentierungs-Konfiguration und phasenspezifischen Druckverlusten ---
     geom_condenser = hx_model.load_geometry("plate_demo")
-    geom_evaporator = hx_model.load_geometry("fin_tube_demo")
+    geom_evaporator = hx_model.load_geometry("plate_demo")
 
     condenser = moving_boundary_ntu.MovingBoundaryNTUCondenser(
         geometry="plate_demo",
@@ -54,8 +54,8 @@ def main():
     )
     
     evaporator = moving_boundary_ntu.MovingBoundaryNTUEvaporator(
-        geometry="fin_tube_demo",
-        secondary_medium="air",
+        geometry="plate_demo",
+        secondary_medium="water",
         flow_type="counter",
         two_phase_heat_transfer=heat_transfer.constant.ConstantTwoPhaseHeatTransfer(alpha=1000),
         gas_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=1000),
@@ -64,7 +64,7 @@ def main():
             thickness=geom_evaporator.wall_thickness_m or 2e-3,
         ),
         liquid_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=5000),
-        secondary_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=25),
+        secondary_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=5000),
         use_segmentation=True,  # Standardmäßig aktiviert
         n_segments_sc=3,      # SC in 3 Segmente, Standardwert
         n_segments_lat=5,     # LAT in 5 Segmente, Standardwert
@@ -94,8 +94,8 @@ def main():
     # --- Ein (einziger) Arbeitspunkt ---
     inputs = Inputs(
         n=0.7,
-        T_eva_in=273.15,          # 0 °C
-        T_con_in=323.15,          # 50 °C
+        T_eva_in=293.15,          # 0 °C
+        T_con_in=353.15,          # 50 °C
         m_flow_eva=0.9,
         m_flow_con=0.2,
         dT_eva_superheating=5.0,  # 5 K Überhitzung
@@ -108,7 +108,7 @@ def main():
 
     # --- Steady State rechnen mit Segmentierung ---
     print("Berechne Wärmepumpen-Kreislauf mit Segmentierung und Druckverlusten...")
-    fs = hp.calc_steady_state(inputs=inputs, show_iteration=True)
+    fs = hp.calc_steady_state(inputs=inputs, show_iteration=False)
 
     # --- Ergebnisse ausgeben ---
     if fs is not None:
