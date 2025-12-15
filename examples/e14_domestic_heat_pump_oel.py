@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import logging
 
 from vclibpy import Inputs
-from vclibpy.flowsheets import StandardCycle
+from vclibpy.flowsheets import StandardCycleWITHdp
 from vclibpy.components.heat_exchangers import moving_boundary_ntu, hx_model
 from vclibpy.components import heat_transfer
 from vclibpy.components.expansion_valves import Bernoulli
@@ -29,7 +29,7 @@ def main():
     
     # --- Komponenten mit Segmentierungs-Konfiguration und phasenspezifischen Druckverlusten ---
     geom_condenser = hx_model.load_geometry("plate_demo")
-    geom_evaporator = hx_model.load_geometry("plate_demo")
+    geom_evaporator = hx_model.load_geometry("fin_tube_demo")
 
     condenser = moving_boundary_ntu.MovingBoundaryNTUCondenser(
         geometry="plate_demo",
@@ -39,12 +39,12 @@ def main():
         gas_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=1000),
         wall_heat_transfer=heat_transfer.wall.WallTransfer(
             lambda_=236,
-            thickness=geom_condenser.wall_thickness_m or 2e-3,
+            thickness=geom_condenser.wall_thickness_m,
         ),
         liquid_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=5000),
         secondary_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=5000),
         use_segmentation=True,  # Standardmäßig aktiviert
-        n_segments_sc=10,      # SC in 3 Segmente, Standardwert
+        n_segments_sc=3,      # SC in 3 Segmente, Standardwert
         n_segments_lat=5,     # LAT in 5 Segmente, Standardwert
         n_segments_sh=3,      # SH in 3 Segmente, Standardwert
         # Phasenspezifische Druckverlust-Korrelationen (hier alle konstant als Beispiel)
@@ -54,17 +54,14 @@ def main():
     )
     
     evaporator = moving_boundary_ntu.MovingBoundaryNTUEvaporator(
-        geometry="plate_demo",
-        secondary_medium="water",
+        geometry="fin_tube_demo",
+        secondary_medium="air",
         flow_type="counter",
         two_phase_heat_transfer=heat_transfer.constant.ConstantTwoPhaseHeatTransfer(alpha=1000),
         gas_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=1000),
-        wall_heat_transfer=heat_transfer.wall.WallTransfer(
-            lambda_=236,
-            thickness=geom_evaporator.wall_thickness_m or 2e-3,
-        ),
+        wall_heat_transfer=heat_transfer.wall.WallTransfer(lambda_=236, thickness=geom_evaporator.wall_thickness_m,),
         liquid_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=5000),
-        secondary_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=5000),
+        secondary_heat_transfer=heat_transfer.constant.ConstantHeatTransfer(alpha=25),
         use_segmentation=True,  # Standardmäßig aktiviert
         n_segments_sc=3,      # SC in 3 Segmente, Standardwert
         n_segments_lat=5,     # LAT in 5 Segmente, Standardwert
@@ -83,7 +80,7 @@ def main():
     expansion_valve = Bernoulli(A=0.1)
     compressor = RotaryCompressor(N_max=125, V_h=19e-6)
 
-    hp = StandardCycle(
+    hp = StandardCycleWITHdp(
         evaporator=evaporator,
         condenser=condenser,
         fluid="Propane",
