@@ -1,11 +1,12 @@
 import abc
 
-from typing import Tuple
+from typing import Optional, Tuple
 
 from vclibpy import media
 from vclibpy.datamodels import FlowsheetState, Inputs
 from vclibpy.components.component import BaseComponent
-from vclibpy.components.heat_exchangers.heat_transfer.heat_transfer import HeatTransfer, TwoPhaseHeatTransfer
+from vclibpy.components.heat_transfer.heat_transfer import HeatTransfer, TwoPhaseHeatTransfer
+from vclibpy.components.heat_exchangers.segmentation import SegmentationConfig
 
 
 class HeatExchanger(BaseComponent, abc.ABC):
@@ -27,6 +28,13 @@ class HeatExchanger(BaseComponent, abc.ABC):
             Model for heat transfer from refrigerant liquid to wall
         two_phase_heat_transfer (TwoPhaseHeatTransfer):
             Model for heat transfer from refrigerant two phase to wall
+        segmentation (SegmentationConfig | None):
+            Optional segmentation configuration. When provided the instance is
+            flagged for segmented calculations in the future but continues to
+            use the legacy moving-boundary NTU path until that mode is
+            implemented.
+        dp_model: Optional pressure-drop model used by segmented calculations.
+            When ``None`` no pressure-drop effects are applied.
     """
 
     def __init__(
@@ -37,11 +45,17 @@ class HeatExchanger(BaseComponent, abc.ABC):
             gas_heat_transfer: HeatTransfer,
             liquid_heat_transfer: HeatTransfer,
             two_phase_heat_transfer: TwoPhaseHeatTransfer,
-            secondary_medium: str
+            secondary_medium: str,
+            segmentation: Optional[SegmentationConfig] = None,
+            dp_model=None,
     ):
         super().__init__()
         self.A = A
         self.secondary_medium = secondary_medium.lower()
+        if segmentation is not None and not isinstance(segmentation, SegmentationConfig):
+            raise TypeError("segmentation must be a SegmentationConfig or None")
+        self.segmentation = segmentation if segmentation and segmentation.enabled else None
+        self.dp_model = dp_model
 
         self._wall_heat_transfer = wall_heat_transfer
         self._secondary_heat_transfer = secondary_heat_transfer
@@ -53,6 +67,16 @@ class HeatExchanger(BaseComponent, abc.ABC):
         self._m_flow_secondary = None
         self._secondary_cp = 0  # Allow initial calculation of _m_flow_secondary_cp if cp is not set
         self._m_flow_secondary_cp = 0
+
+    def uses_segmented_mode(self) -> bool:
+        """Return ``True`` when a segmentation configuration is provided."""
+
+        return self.segmentation is not None and self.segmentation.enabled
+
+    def uses_legacy_mode(self) -> bool:
+        """Return ``True`` when no segmentation is configured (default behaviour)."""
+
+        return not self.uses_segmented_mode()
 
     def start_secondary_med_prop(self):
         """

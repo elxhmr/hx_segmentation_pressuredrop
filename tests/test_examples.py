@@ -41,6 +41,9 @@ class TestExamples(unittest.TestCase):
     def test_e7_vapor_injection(self):
         self._run_example(example="e7_vapor_injection.py")
 
+    def test_e14_domestic_heat_pump_oel(self):
+        self._run_example(example="e14_domestic_heat_pump_oel.py")
+
 
 if __name__ == "__main__":
     unittest.main()

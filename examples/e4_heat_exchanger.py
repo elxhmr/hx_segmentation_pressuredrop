@@ -16,13 +16,13 @@ def main():
     # Let's model a simple air-to-refrigerant heat exchanger with
     # constant heat transfer correlations. The areas are not that important
     # for this example.
-    # For heat transfer, you can import models from the `heat_transfer` package
-    # inside the `heat_exchangers` package.
+    # For heat transfer, you can import models from the `heat_transfer` package.
     # You will find all options in the documentation of VcLibPy
-    from vclibpy.components.heat_exchangers.heat_transfer.constant import (
-        ConstantHeatTransfer, ConstantTwoPhaseHeatTransfer
-    )
-    from vclibpy.components.heat_exchangers.heat_transfer.wall import WallTransfer
+    from vclibpy.components import heat_transfer
+
+    ConstantHeatTransfer = heat_transfer.constant.ConstantHeatTransfer
+    ConstantTwoPhaseHeatTransfer = heat_transfer.constant.ConstantTwoPhaseHeatTransfer
+    WallTransfer = heat_transfer.wall.WallTransfer
     # Now, we can instantiate the class:
     evaporator = MovingBoundaryNTUEvaporator(
         A=15,
